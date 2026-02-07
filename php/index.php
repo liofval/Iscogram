@@ -503,9 +503,9 @@ $app->get('/', function (Request $request, Response $response) {
         JOIN `users` u ON p.`user_id` = u.`id`
         WHERE u.`del_flg` = 0
         ORDER BY p.`created_at` DESC
-        LIMIT ?
+        LIMIT ' . POSTS_PER_PAGE . '
     ');
-    $ps->execute([POSTS_PER_PAGE]);
+    $ps->execute();
     $results = $ps->fetchAll(PDO::FETCH_ASSOC);
     $posts = $this->get('helper')->make_posts($results);
 
@@ -527,9 +527,9 @@ $app->get('/posts', function (Request $request, Response $response) {
         JOIN `users` u ON p.`user_id` = u.`id`
         WHERE u.`del_flg` = 0 AND p.`created_at` <= ?
         ORDER BY p.`created_at` DESC
-        LIMIT ?
+        LIMIT ' . POSTS_PER_PAGE . '
     ');
-    $ps->execute([$max_created_at, POSTS_PER_PAGE]);
+    $ps->execute([$max_created_at]);
     $results = $ps->fetchAll(PDO::FETCH_ASSOC);
     $posts = $this->get('helper')->make_posts($results);
 
@@ -739,8 +739,8 @@ $app->get('/@{account_name}', function (Request $request, Response $response, $a
     }
 
     // 投稿を取得（LIMITで件数制限）
-    $ps = $db->prepare('SELECT `id`, `user_id`, `body`, `created_at`, `mime` FROM `posts` WHERE `user_id` = ? ORDER BY `created_at` DESC LIMIT ?');
-    $ps->execute([$user['id'], POSTS_PER_PAGE]);
+    $ps = $db->prepare('SELECT `id`, `user_id`, `body`, `created_at`, `mime` FROM `posts` WHERE `user_id` = ? ORDER BY `created_at` DESC LIMIT ' . POSTS_PER_PAGE);
+    $ps->execute([$user['id']]);
     $results = $ps->fetchAll(PDO::FETCH_ASSOC);
     $posts = $this->get('helper')->make_posts($results);
 
