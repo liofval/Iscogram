@@ -419,8 +419,8 @@ $app->post('/', function (Request $request, Response $response) {
     }
 
     if ($_FILES['file']) {
+        // セキュリティ: ファイルタイプの検証（jpeg/png/gifのみ許可）
         $mime = '';
-        // 投稿のContent-Typeからファイルのタイプを決定する
         if (strpos($_FILES['file']['type'], 'jpeg') !== false) {
             $mime = 'image/jpeg';
         } elseif (strpos($_FILES['file']['type'], 'png') !== false) {
@@ -432,6 +432,7 @@ $app->post('/', function (Request $request, Response $response) {
             return redirect($response, '/', 302);
         }
 
+        // セキュリティ: ファイルサイズ制限（10MB以下）
         if (strlen(file_get_contents($_FILES['file']['tmp_name'])) > UPLOAD_LIMIT) {
             $this->get('flash')->addMessage('notice', 'ファイルサイズが大きすぎます');
             return redirect($response, '/', 302);
@@ -449,6 +450,7 @@ $app->post('/', function (Request $request, Response $response) {
         $pid = $db->lastInsertId();
 
         // 画像をファイルシステムに保存
+        // セキュリティ: ファイル名は {post_id}.{ext} 形式で生成（ユーザー入力不使用、パストラバーサル対策済み）
         $image_path = get_image_path($pid, $mime);
         move_uploaded_file($_FILES['file']['tmp_name'], $image_path);
 
@@ -459,11 +461,14 @@ $app->post('/', function (Request $request, Response $response) {
     }
 });
 
+// 画像配信エンドポイント
+// 注: Nginxで直接配信される場合はこのエンドポイントは呼ばれない（フォールバック用）
 $app->get('/image/{id}.{ext}', function (Request $request, Response $response, $args) {
     if ($args['id'] == 0) {
         return $response;
     }
 
+    // 拡張子からMIMEタイプを決定（許可された形式のみ）
     $ext = $args['ext'];
     $mime = match ($ext) {
         'jpg' => 'image/jpeg',
@@ -477,14 +482,14 @@ $app->get('/image/{id}.{ext}', function (Request $request, Response $response, $
         return $response->withStatus(404);
     }
 
-    // ファイルシステムを優先してチェック
+    // ファイルシステムを優先してチェック（高速）
     $image_path = IMAGE_DIR . "/{$args['id']}.{$ext}";
     if (file_exists($image_path)) {
         $response->getBody()->write(file_get_contents($image_path));
         return $response->withHeader('Content-Type', $mime);
     }
 
-    // ファイルがなければDBから取得（フォールバック）
+    // ファイルがなければDBから取得（フォールバック：マイグレーション中の互換性確保）
     $post = $this->get('helper')->fetch_first('SELECT mime, imgdata FROM `posts` WHERE `id` = ?', $args['id']);
 
     if ($post && $post['mime'] === $mime && !empty($post['imgdata'])) {
