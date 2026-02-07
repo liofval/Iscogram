@@ -381,9 +381,10 @@ function validate_user($account_name, $password) {
 }
 
 function digest($src) {
-    // opensslのバージョンによっては (stdin)= というのがつくので取る
-    $src = escapeshellarg($src);
-    return trim(`printf "%s" {$src} | openssl dgst -sha512 | sed 's/^.*= //'`);
+    // PHP組み込み関数でSHA-512ハッシュを計算
+    // 変更前: シェルコマンド（printf | openssl dgst -sha512 | sed）を毎回プロセス生成して実行
+    // 変更後: PHPのhash()関数でインプロセス実行（プロセス生成コストを削減）
+    return hash('sha512', $src);
 }
 
 function calculate_salt($account_name) {
