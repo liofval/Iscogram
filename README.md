@@ -9,8 +9,7 @@ PR TIMES 学生インターン課題として、[private-isu](https://github.com
 | 0 | 初期状態（PHP実装） | 0 | 172 | 37 | [#1](https://github.com/liofval/Iscogram/pull/1) |
 | 1 | 画像ファイルシステム移行 | 0 | 206 | 64 | [#4](https://github.com/liofval/Iscogram/pull/4) |
 | 2 | N+1クエリ解消 + クエリ最適化 | 0 | 422 | 26 | [#5](https://github.com/liofval/Iscogram/pull/5) |
-| 3 | digest関数のPHP化 | - | - | - | [#6](https://github.com/liofval/Iscogram/pull/6) |
-| **最終** | **（ベンチマーク実行後に更新）** | **-** | **-** | **-** | - |
+| 3 | digest関数のPHP化 + LIMITバグ修正 | **29,742** | **28,625** | **0** | [#6](https://github.com/liofval/Iscogram/pull/6), [#8](https://github.com/liofval/Iscogram/pull/8) |
 
 ## 使用言語
 
@@ -55,6 +54,11 @@ PR TIMES 学生インターン課題として、[private-isu](https://github.com
 - シェルコマンド呼び出し（printf | openssl | sed）をPHPの`hash('sha512')`に置き換え
 - 認証処理のたびに発生していたプロセス生成コストを削減
 
+### PR #8: LIMITパラメータのバインドバグ修正
+
+- PDOの`execute()`がLIMIT値を文字列としてバインドしMySQLエラーが発生していた問題を修正
+- 定数`POSTS_PER_PAGE`をSQL文字列に直接埋め込む方式に変更
+
 ## ディレクトリ構成
 
 ```
@@ -95,7 +99,15 @@ docker run --network host -i \
 
 ## 総括
 
-（最終的な改善結果と学んだことを記述予定）
+初期スコア0から**29,742**まで改善しました。主な改善ポイント：
+
+1. **画像配信の最適化**: DBのBLOBからファイルシステム+Nginx直接配信に変更し、画像タイムアウトを解消
+2. **N+1クエリの解消**: ループ内の個別クエリをIN句+バッチ処理に変更し、クエリ数を121回→4回に削減
+3. **インデックスの追加**: WHERE/ORDER BY句で使用するカラムにインデックスを張りフルスキャンを回避
+4. **クエリの効率化**: 全件取得→JOIN+LIMITで必要分のみ取得
+5. **外部プロセス呼び出しの排除**: シェルコマンドをPHP組み込み関数に置き換え
+
+パフォーマンスチューニングでは「推測するな、計測せよ」の原則に従い、ベンチマーク結果のエラーメッセージからボトルネックを特定し、仮説→実装→検証のサイクルを繰り返しました。
 
 ## 詳細ドキュメント
 
