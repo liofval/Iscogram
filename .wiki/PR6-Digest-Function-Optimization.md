@@ -122,8 +122,8 @@ print_r(hash_algos());
 ## 効果
 
 ```
-変更前: score=0  success=422  fail=26
-変更後: （ベンチマーク実行後に更新）
+変更前: score=0      success=422    fail=26
+変更後: score=29,742 success=28,625 fail=0  （PR #8のバグ修正含む）
 ```
 
 ## 学んだこと

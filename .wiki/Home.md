@@ -16,6 +16,7 @@ private-isuは「Iscogram」という画像投稿SNSで、Instagram風のWebア�
 - [PR #4: 画像ファイルシステム移行](./PR4-Image-Filesystem-Migration.md)
 - [PR #5: N+1クエリ問題の解消](./PR5-N-Plus-1-Query-Fix.md)
 - [PR #6: digest関数の最適化](./PR6-Digest-Function-Optimization.md)
+- [PR #8: LIMITパラメータバグ修正](./PR8-Limit-Parameter-Fix.md)
 
 ### リファレンス
 - [Technical Glossary](./Technical-Glossary.md) - 技術用語集
@@ -24,10 +25,10 @@ private-isuは「Iscogram」という画像投稿SNSで、Instagram風のWebア�
 ## スコア推移
 
 ```
-初期状態:        score=0  success=172  fail=37   ← 画像タイムアウト多発
-PR#4 画像移行後: score=0  success=206  fail=64   ← 画像タイムアウト解消
-PR#5 N+1解消後:  score=0  success=422  fail=26   ← クエリ最適化効果
-PR#6 digest最適: （ベンチマーク実行後に更新）
+初期状態:          score=0      success=172    fail=37  ← 画像タイムアウト多発
+PR#4 画像移行後:   score=0      success=206    fail=64  ← 画像タイムアウト解消
+PR#5 N+1解消後:    score=0      success=422    fail=26  ← クエリ最適化効果
+PR#6+#8 最終:      score=29,742 success=28,625 fail=0   ← digest最適化+バグ修正
 ```
 
 ## 使用技術スタック
