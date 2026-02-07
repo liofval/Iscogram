@@ -25,6 +25,21 @@ if (is_file($file)) {
 
 const POSTS_PER_PAGE = 20;
 const UPLOAD_LIMIT = 10 * 1024 * 1024;
+const IMAGE_DIR = '/home/public/image';
+
+function get_image_ext($mime) {
+    return match ($mime) {
+        'image/jpeg' => 'jpg',
+        'image/png' => 'png',
+        'image/gif' => 'gif',
+        default => ''
+    };
+}
+
+function get_image_path($id, $mime) {
+    $ext = get_image_ext($mime);
+    return IMAGE_DIR . "/{$id}.{$ext}";
+}
 
 // memcached session
 $memd_addr = '127.0.0.1:11211';
@@ -94,6 +109,44 @@ $container->set('helper', function ($c) {
             $sql[] = 'UPDATE users SET del_flg = 1 WHERE id % 50 = 0';
             foreach($sql as $s) {
                 $db->query($s);
+            }
+
+            // 新規投稿（id > 10000）の画像ファイルのみ削除
+            $this->cleanup_new_images();
+        }
+
+        public function cleanup_new_images() {
+            // id > 10000 の画像ファイルを削除
+            $files = glob(IMAGE_DIR . '/*');
+            foreach ($files as $file) {
+                if (is_file($file)) {
+                    $basename = basename($file);
+                    if (preg_match('/^(\d+)\./', $basename, $matches)) {
+                        $id = (int)$matches[1];
+                        if ($id > 10000) {
+                            unlink($file);
+                        }
+                    }
+                }
+            }
+        }
+
+        public function export_images_to_filesystem() {
+            // DBから画像を取得してファイルに書き出す（バッチ処理でメモリ節約）
+            $db = $this->db();
+            $batch_size = 100;
+
+            for ($offset = 0; $offset < 10000; $offset += $batch_size) {
+                $ps = $db->prepare('SELECT id, mime, imgdata FROM posts WHERE id > ? AND id <= ? ORDER BY id');
+                $ps->execute([$offset, $offset + $batch_size]);
+
+                while ($row = $ps->fetch(PDO::FETCH_ASSOC)) {
+                    $path = get_image_path($row['id'], $row['mime']);
+                    if (!file_exists($path)) {
+                        file_put_contents($path, $row['imgdata']);
+                    }
+                }
+                $ps->closeCursor();
             }
         }
 
@@ -213,6 +266,13 @@ function calculate_passhash($account_name, $password) {
 
 $app->get('/initialize', function (Request $request, Response $response) {
     $this->get('helper')->db_initialize();
+    return $response;
+});
+
+// 画像を事前にDBからファイルシステムにエクスポート（ベンチマーク前に1回実行）
+$app->get('/export-images', function (Request $request, Response $response) {
+    $this->get('helper')->export_images_to_filesystem();
+    $response->getBody()->write('Images exported successfully');
     return $response;
 });
 
@@ -383,10 +443,15 @@ $app->post('/', function (Request $request, Response $response) {
         $ps->execute([
           $me['id'],
           $mime,
-          file_get_contents($_FILES['file']['tmp_name']),
+          '',  // imgdataは空にする（ファイルシステムに保存するため）
           $params['body'],
         ]);
         $pid = $db->lastInsertId();
+
+        // 画像をファイルシステムに保存
+        $image_path = get_image_path($pid, $mime);
+        move_uploaded_file($_FILES['file']['tmp_name'], $image_path);
+
         return redirect($response, "/posts/{$pid}", 302);
     } else {
         $this->get('flash')->addMessage('notice', '画像が必須です');
@@ -399,14 +464,34 @@ $app->get('/image/{id}.{ext}', function (Request $request, Response $response, $
         return $response;
     }
 
-    $post = $this->get('helper')->fetch_first('SELECT * FROM `posts` WHERE `id` = ?', $args['id']);
+    $ext = $args['ext'];
+    $mime = match ($ext) {
+        'jpg' => 'image/jpeg',
+        'png' => 'image/png',
+        'gif' => 'image/gif',
+        default => ''
+    };
 
-    if (($args['ext'] == 'jpg' && $post['mime'] == 'image/jpeg') ||
-        ($args['ext'] == 'png' && $post['mime'] == 'image/png') ||
-        ($args['ext'] == 'gif' && $post['mime'] == 'image/gif')) {
+    if ($mime === '') {
+        $response->getBody()->write('404');
+        return $response->withStatus(404);
+    }
+
+    // ファイルシステムを優先してチェック
+    $image_path = IMAGE_DIR . "/{$args['id']}.{$ext}";
+    if (file_exists($image_path)) {
+        $response->getBody()->write(file_get_contents($image_path));
+        return $response->withHeader('Content-Type', $mime);
+    }
+
+    // ファイルがなければDBから取得（フォールバック）
+    $post = $this->get('helper')->fetch_first('SELECT mime, imgdata FROM `posts` WHERE `id` = ?', $args['id']);
+
+    if ($post && $post['mime'] === $mime && !empty($post['imgdata'])) {
         $response->getBody()->write($post['imgdata']);
         return $response->withHeader('Content-Type', $post['mime']);
     }
+
     $response->getBody()->write('404');
     return $response->withStatus(404);
 });

@@ -1,0 +1,7 @@
+# Ignore all image files (exported from DB)
+*.jpg
+*.png
+*.gif
+
+# But keep this .gitignore
+!.gitignore
